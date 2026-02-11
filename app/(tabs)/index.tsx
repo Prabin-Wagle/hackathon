@@ -1,40 +1,65 @@
 import { Image } from 'expo-image';
 import React, { useState } from 'react';
-import { ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Device } from 'react-native-ble-plx';
 
-import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useAuth } from '@/hooks/use-auth';
 import { bluetoothService } from '@/services/bluetooth';
+import { peripheralService } from '@/services/peripheral';
 
 export default function HomeScreen() {
-  const [isScanning, setIsScanning] = useState(false);
-  const [devices, setDevices] = useState<Device[]>([]);
+  const { role, userId, logout } = useAuth();
+  const [isBusy, setIsBusy] = useState(false);
+  const [presentStudents, setPresentStudents] = useState<string[]>([]);
+  const [discoveredDevices, setDiscoveredDevices] = useState<Device[]>([]);
 
-  const handleScan = async () => {
+  // Teacher Scan Handler
+  const handleTeacherScan = async () => {
     const hasPermission = await bluetoothService.requestPermissions();
     if (!hasPermission) {
       alert('Bluetooth permissions denied');
       return;
     }
 
-    if (isScanning) {
+    if (isBusy) {
       bluetoothService.stopScanning();
-      setIsScanning(false);
+      setIsBusy(false);
     } else {
-      setDevices([]);
-      setIsScanning(true);
+      setDiscoveredDevices([]);
+      setPresentStudents([]); // Clear previous list
+      setIsBusy(true);
       bluetoothService.startScanning((device) => {
-        setDevices((prev) => {
-          if (prev.find((d) => d.id === device.id)) return prev;
-          return [...prev, device];
-        });
+        if (device.name) {
+          setPresentStudents((prev) => {
+            if (prev.includes(device.name!)) return prev;
+            return [...prev, device.name!];
+          });
+          setDiscoveredDevices((prev) => {
+            if (prev.find((d) => d.id === device.id)) return prev;
+            return [...prev, device];
+          });
+        }
       });
+      setTimeout(() => setIsBusy(false), 15000);
+    }
+  };
 
-      // Stop scanning automatically after 10s
-      setTimeout(() => setIsScanning(false), 10000);
+  // Student Advertise Handler
+  const handleStudentPresence = async () => {
+    if (isBusy) {
+      await peripheralService.stopAdvertising();
+      setIsBusy(false);
+    } else {
+      setIsBusy(true);
+      await peripheralService.startAdvertising(userId || 'Anonymous Student');
+      alert('Broadcasting presence for 1 minute...');
+      setTimeout(async () => {
+        await peripheralService.stopAdvertising();
+        setIsBusy(false);
+      }, 60000);
     }
   };
 
@@ -47,45 +72,74 @@ export default function HomeScreen() {
           style={styles.reactLogo}
         />
       }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">BT Chat & Attendance</ThemedText>
-        <HelloWave />
-      </ThemedView>
-
-      <ThemedView style={styles.stepContainer}>
-        <TouchableOpacity style={styles.scanButton} onPress={handleScan}>
-          <ThemedText style={styles.buttonText}>
-            {isScanning ? 'Stop Scanning' : 'Start Scanning for Devices'}
-          </ThemedText>
-          {isScanning && <ActivityIndicator color="#fff" style={{ marginLeft: 10 }} />}
+      <ThemedView style={styles.header}>
+        <View>
+          <ThemedText type="title">Hello, {userId}!</ThemedText>
+          <ThemedText type="subtitle">Mode: {role === 'teacher' ? 'Instructor' : 'Student'}</ThemedText>
+        </View>
+        <TouchableOpacity onPress={logout}>
+          <ThemedText style={styles.logoutText}>Logout</ThemedText>
         </TouchableOpacity>
       </ThemedView>
 
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Nearby Devices</ThemedText>
-        {devices.length === 0 && !isScanning && (
-          <ThemedText>No devices found yet.</ThemedText>
-        )}
-        {devices.map((device) => (
-          <ThemedView key={device.id} style={styles.deviceItem}>
-            <ThemedText type="defaultSemiBold">{device.name || 'Unnamed Device'}</ThemedText>
-            <ThemedText type="default">{device.id}</ThemedText>
+      {role === 'teacher' ? (
+        <>
+          <ThemedView style={styles.section}>
+            <TouchableOpacity style={styles.primaryButton} onPress={handleTeacherScan}>
+              <ThemedText style={styles.buttonText}>
+                {isBusy ? 'Scanning...' : 'Take Attendance'}
+              </ThemedText>
+              {isBusy && <ActivityIndicator color="#fff" style={{ marginLeft: 10 }} />}
+            </TouchableOpacity>
           </ThemedView>
-        ))}
+
+          <ThemedView style={styles.section}>
+            <ThemedText type="subtitle">Students Present ({presentStudents.length})</ThemedText>
+            {presentStudents.length === 0 && !isBusy && (
+              <ThemedText style={styles.emptyText}>No students detected nearby.</ThemedText>
+            )}
+            {presentStudents.map((student, idx) => (
+              <View key={idx} style={styles.listItem}>
+                <ThemedText type="defaultSemiBold">✅ {student}</ThemedText>
+              </View>
+            ))}
+          </ThemedView>
+        </>
+      ) : (
+        <ThemedView style={styles.section}>
+          <ThemedText type="subtitle">Attendance Check</ThemedText>
+          <ThemedText style={styles.description}>
+            Wait for your teacher to initiate the scan. Then, tap the button below to mark yourself as present.
+          </ThemedText>
+          <TouchableOpacity
+            style={[styles.primaryButton, isBusy && styles.activeButton]}
+            onPress={handleStudentPresence}
+          >
+            <ThemedText style={styles.buttonText}>
+              {isBusy ? 'Presence Broadcasting...' : 'Mark Me Present'}
+            </ThemedText>
+            {isBusy && <ActivityIndicator color="#fff" style={{ marginLeft: 10 }} />}
+          </TouchableOpacity>
+        </ThemedView>
+      )}
+
+      <ThemedView style={styles.footer}>
+        <ThemedText type="default">Secure Bluetooth Attendance v1.0</ThemedText>
       </ThemedView>
     </ParallaxScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
+    paddingBottom: 20,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  section: {
+    gap: 12,
+    marginBottom: 24,
   },
   reactLogo: {
     height: 178,
@@ -94,22 +148,48 @@ const styles = StyleSheet.create({
     left: 0,
     position: 'absolute',
   },
-  scanButton: {
+  primaryButton: {
     backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 10,
+    padding: 18,
+    borderRadius: 12,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  activeButton: {
+    backgroundColor: '#34C759',
   },
   buttonText: {
     color: '#fff',
     fontWeight: 'bold',
+    fontSize: 16,
   },
-  deviceItem: {
-    padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-    marginTop: 5,
+  listItem: {
+    padding: 15,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 10,
+    marginTop: 8,
+  },
+  emptyText: {
+    opacity: 0.6,
+    fontStyle: 'italic',
+  },
+  description: {
+    marginBottom: 10,
+    opacity: 0.8,
+  },
+  logoutText: {
+    color: '#FF3B30',
+    fontWeight: 'bold',
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: 20,
+    opacity: 0.4,
   },
 });

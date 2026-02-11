@@ -53,11 +53,14 @@
         {
           "isBackgroundEnabled": true,
           "modes": [
-            "central"
+            "central",
+            "peripheral"
           ],
-          "bluetoothAlwaysPermission": "Allow this app to use Bluetooth to find nearby devices for chatting and attendance."
+          "bluetoothAlwaysPermission": "Allow this app to use Bluetooth to find nearby devices for chatting and attendance.",
+          "bluetoothPeripheralPermission": "Allow this app to be discoverable by teachers for attendance marking."
         }
-      ]
+      ],
+      "munim-bluetooth-peripheral"
     ],
     "experiments": {
       "typedRoutes": true,
