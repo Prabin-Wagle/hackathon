@@ -1,4 +1,4 @@
-import Peripheral from 'munim-bluetooth-peripheral';
+import { startAdvertising, stopAdvertising } from 'munim-bluetooth-peripheral';
 
 class PeripheralService {
     private serviceUUID = '12345678-1234-1234-1234-1234567890ab';
@@ -6,23 +6,11 @@ class PeripheralService {
 
     async startAdvertising(userName: string) {
         try {
-            if (typeof Peripheral.isAdvertising === 'function') {
-                const isAdv = await Peripheral.isAdvertising();
-                if (isAdv) await Peripheral.stopAdvertising();
-            }
+            // Configure services first if needed (though startAdvertising often takes configuration)
+            // Note: Library specifics might vary, but based on exports:
 
-            await Peripheral.addService(this.serviceUUID, true);
-            await Peripheral.addCharacteristicToService(
-                this.serviceUUID,
-                this.characteristicUUID,
-                1, // Permissions: Read
-                2 // Properties: Read
-            );
-
-            // Set Name for advertising
-            await Peripheral.setName(userName);
-            await Peripheral.startAdvertising({
-                name: userName,
+            await startAdvertising({
+                localName: userName,
                 serviceUUIDs: [this.serviceUUID],
             });
             console.log('Started peripheral advertising as:', userName);
@@ -33,7 +21,7 @@ class PeripheralService {
 
     async stopAdvertising() {
         try {
-            await Peripheral.stopAdvertising();
+            await stopAdvertising();
         } catch (error) {
             console.error('Stop Peripheral Error:', error);
         }

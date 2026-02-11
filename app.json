@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSBluetoothPeripheralUsageDescription": "Allow this app to be discoverable by teachers for attendance marking.",
+        "NSBluetoothAlwaysUsageDescription": "Allow this app to use Bluetooth to find nearby devices for chatting and attendance."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -53,14 +57,11 @@
         {
           "isBackgroundEnabled": true,
           "modes": [
-            "central",
-            "peripheral"
+            "central"
           ],
-          "bluetoothAlwaysPermission": "Allow this app to use Bluetooth to find nearby devices for chatting and attendance.",
-          "bluetoothPeripheralPermission": "Allow this app to be discoverable by teachers for attendance marking."
+          "bluetoothAlwaysPermission": "Allow this app to use Bluetooth to find nearby devices for chatting and attendance."
         }
-      ],
-      "munim-bluetooth-peripheral"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
