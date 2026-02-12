@@ -2,6 +2,7 @@ import * as base64 from 'base64-js';
 import { Buffer } from 'buffer';
 import * as Crypto from 'expo-crypto';
 import nacl from 'tweetnacl';
+import './polyfill';
 
 export async function sha256(data: string): Promise<string> {
     const digest = await Crypto.digestStringAsync(

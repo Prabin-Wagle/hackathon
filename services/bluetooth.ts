@@ -1,9 +1,9 @@
-import { BleManager, Device, State } from 'react-native-ble-plx';
 import { PermissionsAndroid, Platform } from 'react-native';
+import { BleManager, Device, State } from 'react-native-ble-plx';
 
 class BluetoothService {
   private manager: BleManager;
-  private scannerTimeout: NodeJS.Timeout | null = null;
+  private scannerTimeout: any = null;
 
   constructor() {
     this.manager = new BleManager();
@@ -11,19 +11,59 @@ class BluetoothService {
 
   async requestPermissions() {
     if (Platform.OS === 'android') {
-      const granted = await PermissionsAndroid.requestMultiple([
-        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      ]);
+      try {
+        const permissions: any[] = [];
 
-      return (
-        granted[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN] === PermissionsAndroid.RESULTS.GRANTED &&
-        granted[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] === PermissionsAndroid.RESULTS.GRANTED &&
-        granted[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED
-      );
+        if (Platform.Version >= 31) {
+          permissions.push(
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+          );
+        } else {
+          permissions.push(
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION
+          );
+        }
+
+        const granted = await PermissionsAndroid.requestMultiple(permissions);
+        console.log('Permission status trace:', granted);
+        return granted;
+      } catch (err) {
+        console.error('Permission request error:', err);
+        return {};
+      }
     }
-    return true;
+    return {};
+  }
+
+  async checkPermission(permission: any): Promise<boolean> {
+    if (Platform.OS !== 'android') return true;
+    return await PermissionsAndroid.check(permission);
+  }
+
+  async hasSendPermissions(): Promise<boolean> {
+    if (Platform.OS !== 'android') return true;
+    if (Platform.Version >= 31) {
+      const scan = await this.checkPermission(PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN);
+      const connect = await this.checkPermission(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT);
+      const loc = await this.checkPermission(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+      return scan && connect && loc;
+    }
+    return await this.checkPermission(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+  }
+
+  async hasReceivePermissions(): Promise<boolean> {
+    if (Platform.OS !== 'android') return true;
+    if (Platform.Version >= 31) {
+      const adv = await this.checkPermission(PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE);
+      const connect = await this.checkPermission(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT);
+      const loc = await this.checkPermission(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+      return adv && connect && loc;
+    }
+    return await this.checkPermission(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
   }
 
   startScanning(callback: (device: Device) => void) {
@@ -58,6 +98,16 @@ class BluetoothService {
     } catch (error) {
       console.error('Connection Error:', error);
       throw error;
+    }
+  }
+
+  async isBluetoothEnabled(): Promise<boolean> {
+    try {
+      const state = await this.manager.state();
+      return state === State.PoweredOn;
+    } catch (error) {
+      console.error('Error checking bluetooth state:', error);
+      return false;
     }
   }
 

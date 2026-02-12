@@ -2,15 +2,22 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useWallet } from '@/hooks/use-wallet';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function LoginScreen() {
     const router = useRouter();
-    const { login } = useWallet();
+    const { login, biometricLogin, biometricsAvailable, biometricsEnabled } = useWallet();
     const [phoneNumber, setPhoneNumber] = useState('');
     const [password, setPassword] = useState('');
     const [isBusy, setIsBusy] = useState(false);
+
+    useEffect(() => {
+        // Auto-trigger biometrics if enabled for returning user
+        if (biometricsAvailable && biometricsEnabled) {
+            handleBiometricLogin();
+        }
+    }, [biometricsAvailable, biometricsEnabled]);
 
     const handleLogin = async () => {
         if (!phoneNumber || !password) {
@@ -22,8 +29,20 @@ export default function LoginScreen() {
         try {
             await login(phoneNumber, password);
             router.replace('/(tabs)');
-        } catch (e) {
-            Alert.alert('Error', 'Failed to create/login to wallet.');
+        } catch (e: any) {
+            Alert.alert('Login Failed', e.message || 'Failed to login to wallet.');
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    const handleBiometricLogin = async () => {
+        setIsBusy(true);
+        try {
+            await biometricLogin();
+            router.replace('/(tabs)');
+        } catch (e: any) {
+            Alert.alert('Biometric Error', e.message || 'Authentication failed.');
         } finally {
             setIsBusy(false);
         }
@@ -41,7 +60,7 @@ export default function LoginScreen() {
                         style={styles.logo}
                     />
                     <ThemedText type="title" style={styles.title}>BlueTransfer</ThemedText>
-                    <ThemedText style={styles.subtitle}>Offline Bluetooth Money</ThemedText>
+                    <ThemedText style={styles.subtitle}>Secure Offline Payments</ThemedText>
                 </View>
 
                 <View style={styles.card}>
@@ -61,7 +80,7 @@ export default function LoginScreen() {
                         <ThemedText style={styles.label}>Password / PIN</ThemedText>
                         <TextInput
                             style={styles.input}
-                            placeholder="Min 6 characters"
+                            placeholder="6+ characters"
                             placeholderTextColor="#94A3B8"
                             secureTextEntry
                             value={password}
@@ -69,20 +88,36 @@ export default function LoginScreen() {
                         />
                     </View>
 
-                    <TouchableOpacity
-                        style={styles.loginButton}
-                        onPress={handleLogin}
-                        disabled={isBusy}
-                    >
-                        {isBusy ? (
-                            <ActivityIndicator color="#fff" />
-                        ) : (
-                            <ThemedText style={styles.loginButtonText}>Access Secure Wallet</ThemedText>
+                    <View style={styles.buttonRow}>
+                        <TouchableOpacity
+                            style={styles.loginButton}
+                            onPress={handleLogin}
+                            disabled={isBusy}
+                        >
+                            {isBusy ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <ThemedText style={styles.loginButtonText}>Access Wallet</ThemedText>
+                            )}
+                        </TouchableOpacity>
+
+                        {(biometricsAvailable && biometricsEnabled) && (
+                            <TouchableOpacity
+                                style={styles.biometricButton}
+                                onPress={handleBiometricLogin}
+                                disabled={isBusy}
+                            >
+                                <ThemedText style={styles.biometricIcon}>🧬</ThemedText>
+                            </TouchableOpacity>
                         )}
+                    </View>
+
+                    <TouchableOpacity onPress={() => router.push('/register')}>
+                        <ThemedText style={styles.registerLink}>New user? Create Secure Wallet</ThemedText>
                     </TouchableOpacity>
 
                     <ThemedText style={styles.hint}>
-                        Wallet keys are generated offline and stored locally on this device.
+                        Wallet keys are generated offline and stored locally in a secure database on this device.
                     </ThemedText>
                 </View>
 
@@ -151,17 +186,40 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#334155',
     },
+    buttonRow: {
+        flexDirection: 'row',
+        gap: 12,
+        marginTop: 10,
+    },
     loginButton: {
         backgroundColor: '#3B82F6',
         padding: 20,
         borderRadius: 16,
         alignItems: 'center',
-        marginTop: 10,
+        flex: 3,
+    },
+    biometricButton: {
+        backgroundColor: '#334155',
+        padding: 20,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flex: 1,
+    },
+    biometricIcon: {
+        fontSize: 24,
     },
     loginButtonText: {
         color: '#FFFFFF',
         fontSize: 18,
         fontWeight: '700',
+    },
+    registerLink: {
+        color: '#94A3B8',
+        textAlign: 'center',
+        marginTop: 5,
+        fontSize: 15,
+        textDecorationLine: 'underline',
     },
     hint: {
         textAlign: 'center',
